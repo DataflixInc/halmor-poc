@@ -1,0 +1,75 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Generate AI response",
+    "description": "API for generating a response based on RAG architecture",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://keto-trust.1h33n5bvl1af.us-south.codeengine.appdomain.cloud"
+    }
+  ],
+  "paths": {
+    "/generate": {
+      "post": {
+        "summary": "Generate response",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GenerateRequest": {
+        "type": "object",
+        "properties": {
+          "chatHistory": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "question"
+        ]
+      },
+      "GenerateResponse": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
