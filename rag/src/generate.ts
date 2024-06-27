@@ -18,15 +18,14 @@ interface ChatItem {
     u?: string;
 }
 
+import { WatsonXAIEmbeddings } from "./Watsonxai.embeddings";
+
 type Message = AIMessage | HumanMessage | undefined; // Common interface for both message types
 
 export const generate = async (chatHistory: ChatItem[]) => {
     try {
-        console.log("Generating");
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        console.log("Question", question);
         const chat = formatChatHistory(chatHistory);
-        console.log("Chat", chat);
         const docs = await vectorStoreDocs(question as string);
 
         const model = new WatsonxAI({
@@ -43,8 +42,6 @@ export const generate = async (chatHistory: ChatItem[]) => {
             chat.length <= 2
                 ? await contextualizedQ(chat, question!)
                 : question!;
-
-        console.log("Contextual Q", contextualQ);
 
         const response = await finalChain(model, docs, contextualQ);
         console.log("Response", response);
@@ -63,6 +60,7 @@ const vectorStoreDocs = async (question: string) => {
     // Load the vector store
     const vectorStore = await HNSWLib.load(
         __dirname + "/embeddings",
+        // new WatsonXAIEmbeddings({})
         new OpenAIEmbeddings()
     );
     return await vectorStore.similaritySearch(question, 1);

@@ -20,11 +20,8 @@ const prompts_1 = require("@langchain/core/prompts");
 const messages_1 = require("@langchain/core/messages");
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log("Generating");
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        console.log("Question", question);
         const chat = formatChatHistory(chatHistory);
-        console.log("Chat", chat);
         const docs = yield vectorStoreDocs(question);
         const model = new watsonx_ai_1.WatsonxAI({
             modelId: "meta-llama/llama-3-70b-instruct",
@@ -38,7 +35,6 @@ const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* ()
         const contextualQ = chat.length <= 2
             ? yield contextualizedQ(chat, question)
             : question;
-        console.log("Contextual Q", contextualQ);
         const response = yield finalChain(model, docs, contextualQ);
         console.log("Response", response);
         let cleanedResponse = cleanResponse(response);
@@ -53,7 +49,9 @@ exports.generate = generate;
 const vectorStoreDocs = (question) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("Creating Vector Store Retriever");
     // Load the vector store
-    const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", new openai_1.OpenAIEmbeddings());
+    const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", 
+    // new WatsonXAIEmbeddings({})
+    new openai_1.OpenAIEmbeddings());
     return yield vectorStore.similaritySearch(question, 1);
 });
 const contextualizedQ = (chat, question) => __awaiter(void 0, void 0, void 0, function* () {
