@@ -20,11 +20,12 @@ export class WatsonXAIEmbeddings extends Embeddings {
                 }),
             });
 
+            const processedDocuments = processDocs(documents);
+
             const generatedEmbeddings = await Promise.all(
-                documents.map(async (chunk: string) => {
-                    console.log("Chunk", chunk);
+                processedDocuments.map(async (chunk: string[]) => {
                     const embeddingParameters = {
-                        inputs: [chunk],
+                        inputs: chunk,
                         modelId: "ibm/slate-125m-english-rtrvr",
                         projectId: process.env.WATSONX_PROJECT_ID!,
                     };
@@ -37,7 +38,6 @@ export class WatsonXAIEmbeddings extends Embeddings {
             );
 
             const finalEmbeddings = generatedEmbeddings.map((embeddings) => {
-                console.log("Embeddings", embeddings);
                 return embeddings.result.results;
             });
 
@@ -48,8 +48,6 @@ export class WatsonXAIEmbeddings extends Embeddings {
                 }
             }
 
-            // console.log("Embeddings", embeddings);
-
             return embeddings;
         } catch (error) {
             console.log("error in embedding", error);
@@ -58,7 +56,6 @@ export class WatsonXAIEmbeddings extends Embeddings {
     }
 
     async embedQuery(query: string): Promise<number[]> {
-        console.log("Embedding Query", query);
         // Service instance
         let watsonxAIService = WatsonXAI.newInstance({
             version: "2024-05-31",
@@ -68,22 +65,17 @@ export class WatsonXAIEmbeddings extends Embeddings {
             }),
         });
 
-        const embeddingParameters = {
+        const generatedEmbeddings = await watsonxAIService.textEmbeddings({
             inputs: [query],
             modelId: "ibm/slate-125m-english-rtrvr",
             projectId: process.env.WATSONX_PROJECT_ID,
-        };
-
-        const generatedEmbeddings = await watsonxAIService.textEmbeddings(
-            embeddingParameters
-        );
+        });
 
         const finalEmbeddings = generatedEmbeddings.result.results.map(
             (embedding: any) => embedding
         );
-        console.log("Generated Embeddings", generatedEmbeddings);
 
-        return finalEmbeddings;
+        return finalEmbeddings[0].embedding;
     }
     catch(error: any) {
         console.log("error in embedding", error);
@@ -91,9 +83,9 @@ export class WatsonXAIEmbeddings extends Embeddings {
     }
 }
 
-const processDocs = (docs: string | any[]) => {
+const processDocs = (docs: string[]): string[][] => {
     const chunkSize = 1000;
-    const finalChunks = [];
+    let finalChunks: string[][] = [];
     for (let i = 0; i < docs.length; i += chunkSize) {
         const chunk = docs.slice(i, i + chunkSize);
         finalChunks.push(chunk);

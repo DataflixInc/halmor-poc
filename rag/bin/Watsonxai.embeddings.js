@@ -28,10 +28,11 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                         apikey: process.env.IBM_CLOUD_API_KEY,
                     }),
                 });
-                const generatedEmbeddings = yield Promise.all(documents.map((chunk) => __awaiter(this, void 0, void 0, function* () {
+                const processedDocuments = processDocs(documents);
+                const generatedEmbeddings = yield Promise.all(processedDocuments.map((chunk) => __awaiter(this, void 0, void 0, function* () {
                     console.log("Chunk", chunk);
                     const embeddingParameters = {
-                        inputs: [chunk],
+                        inputs: chunk,
                         modelId: "ibm/slate-125m-english-rtrvr",
                         projectId: process.env.WATSONX_PROJECT_ID,
                     };
@@ -39,7 +40,6 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                     return embeddings;
                 })));
                 const finalEmbeddings = generatedEmbeddings.map((embeddings) => {
-                    console.log("Embeddings", embeddings);
                     return embeddings.result.results;
                 });
                 let embeddings = [];
@@ -48,7 +48,7 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                         embeddings.push(finalEmbeddings[i][j].embedding);
                     }
                 }
-                // console.log("Embeddings", embeddings);
+                console.log("Embeddings", embeddings);
                 return embeddings;
             }
             catch (error) {
@@ -68,15 +68,15 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                     apikey: process.env.IBM_CLOUD_API_KEY,
                 }),
             });
-            const embeddingParameters = {
+            const generatedEmbeddings = yield watsonxAIService.textEmbeddings({
                 inputs: [query],
                 modelId: "ibm/slate-125m-english-rtrvr",
                 projectId: process.env.WATSONX_PROJECT_ID,
-            };
-            const generatedEmbeddings = yield watsonxAIService.textEmbeddings(embeddingParameters);
+            });
             const finalEmbeddings = generatedEmbeddings.result.results.map((embedding) => embedding);
-            console.log("Generated Embeddings", generatedEmbeddings);
-            return finalEmbeddings;
+            console.log("Generated Embeddings", finalEmbeddings[0].embedding);
+            console.log("Generated Embeddings Res", finalEmbeddings[0].embedding.length);
+            return finalEmbeddings[0].embedding;
         });
     }
     catch(error) {
@@ -87,7 +87,7 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
 exports.WatsonXAIEmbeddings = WatsonXAIEmbeddings;
 const processDocs = (docs) => {
     const chunkSize = 1000;
-    const finalChunks = [];
+    let finalChunks = [];
     for (let i = 0; i < docs.length; i += chunkSize) {
         const chunk = docs.slice(i, i + chunkSize);
         finalChunks.push(chunk);

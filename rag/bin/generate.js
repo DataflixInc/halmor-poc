@@ -11,13 +11,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generate = void 0;
 const hnswlib_1 = require("@langchain/community/vectorstores/hnswlib");
-const openai_1 = require("@langchain/openai");
 const watsonx_ai_1 = require("@langchain/community/llms/watsonx_ai");
 const document_1 = require("langchain/util/document");
 const runnables_1 = require("@langchain/core/runnables");
 const output_parsers_1 = require("@langchain/core/output_parsers");
 const prompts_1 = require("@langchain/core/prompts");
 const messages_1 = require("@langchain/core/messages");
+const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
@@ -32,7 +32,7 @@ const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* ()
                 repetition_penalty: 1,
             },
         });
-        const contextualQ = chat.length <= 2
+        const contextualQ = chat.length >= 2
             ? yield contextualizedQ(chat, question)
             : question;
         const response = yield finalChain(model, docs, contextualQ);
@@ -49,9 +49,7 @@ exports.generate = generate;
 const vectorStoreDocs = (question) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("Creating Vector Store Retriever");
     // Load the vector store
-    const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", 
-    // new WatsonXAIEmbeddings({})
-    new openai_1.OpenAIEmbeddings());
+    const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", new Watsonxai_embeddings_1.WatsonXAIEmbeddings({}));
     return yield vectorStore.similaritySearch(question, 1);
 });
 const contextualizedQ = (chat, question) => __awaiter(void 0, void 0, void 0, function* () {
@@ -131,7 +129,11 @@ const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, 
     }
 });
 const formatChatHistory = (chatHistory) => {
-    console.log("Formatting Chat History");
+    let newChatHistory = [];
+    if (chatHistory.length > 6)
+        newChatHistory = chatHistory.slice(chatHistory.length - 6, chatHistory.length);
+    else
+        newChatHistory = chatHistory;
     return chatHistory.map((item) => {
         if (item.a) {
             return new messages_1.AIMessage(item.a);

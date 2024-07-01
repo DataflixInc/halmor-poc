@@ -4,21 +4,14 @@ import * as fs from "fs";
 import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import dotenv from "dotenv";
-import { OpenAIEmbeddings } from "@langchain/openai";
-// import { WatsonXAIEmbeddings } from "./Watsonxai.embeddings.js";
+
+import { WatsonXAIEmbeddings } from "./Watsonxai.embeddings.js";
 
 dotenv.config();
 
 const generateEmbeddings = async () => {
     try {
-        // const embeddingsModel = new OpenAIEmbeddings({
-        //     openAIApiKey: "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",
-        //     maxConcurrency: 5,
-        // });
         console.log("Generating embeddings.");
-        // const embeddingsModel = new HuggingFaceTransformersEmbeddings({
-        //     model: "Xenova/all-MiniLM-L6-v2",
-        // });
 
         // Text data path
         const DATA_FILE_PATH = "./data/data.txt";
@@ -35,8 +28,7 @@ const generateEmbeddings = async () => {
 
         const vectorStore = await HNSWLib.fromDocuments(
             docs,
-            // new WatsonXAIEmbeddings()
-            new OpenAIEmbeddings()
+            new WatsonXAIEmbeddings({})
         );
         await vectorStore.save("./rag/src/embeddings");
         await vectorStore.save("./rag/bin/embeddings");

@@ -1,5 +1,4 @@
 import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
-import { OpenAIEmbeddings } from "@langchain/openai";
 import { WatsonxAI } from "@langchain/community/llms/watsonx_ai";
 import { formatDocumentsAsString } from "langchain/util/document";
 
@@ -39,7 +38,7 @@ export const generate = async (chatHistory: ChatItem[]) => {
         });
 
         const contextualQ =
-            chat.length <= 2
+            chat.length >= 2
                 ? await contextualizedQ(chat, question!)
                 : question!;
 
@@ -60,8 +59,7 @@ const vectorStoreDocs = async (question: string) => {
     // Load the vector store
     const vectorStore = await HNSWLib.load(
         __dirname + "/embeddings",
-        // new WatsonXAIEmbeddings({})
-        new OpenAIEmbeddings()
+        new WatsonXAIEmbeddings({})
     );
     return await vectorStore.similaritySearch(question, 1);
 };
@@ -153,7 +151,14 @@ const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
 };
 
 const formatChatHistory = (chatHistory: ChatItem[]): Message[] => {
-    console.log("Formatting Chat History");
+    let newChatHistory: ChatItem[] = [];
+    if (chatHistory.length > 6)
+        newChatHistory = chatHistory.slice(
+            chatHistory.length - 6,
+            chatHistory.length
+        );
+    else newChatHistory = chatHistory;
+
     return chatHistory.map((item: ChatItem) => {
         if (item.a) {
             return new AIMessage(item.a);

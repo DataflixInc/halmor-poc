@@ -27,6 +27,9 @@ export class WatsonXAIEmbeddings extends Embeddings {
                         inputs: chunk,
                         modelId: "ibm/slate-125m-english-rtrvr",
                         projectId: process.env.WATSONX_PROJECT_ID,
+                        parameters: {
+                            input_text: true,
+                        },
                     };
 
                     const embeddings = await watsonxAIService.textEmbeddings(
@@ -37,7 +40,6 @@ export class WatsonXAIEmbeddings extends Embeddings {
             );
 
             const finalEmbeddings = generatedEmbeddings.map((embeddings) => {
-                console.log("Embeddings", embeddings.result.results);
                 return embeddings.result.results;
             });
 
@@ -65,22 +67,17 @@ export class WatsonXAIEmbeddings extends Embeddings {
             }),
         });
 
-        const embeddingParameters = {
+        const generatedEmbeddings = await watsonxAIService.textEmbeddings({
             inputs: [query],
             modelId: "ibm/slate-125m-english-rtrvr",
             projectId: process.env.WATSONX_PROJECT_ID,
-        };
-
-        const generatedEmbeddings = await watsonxAIService.textEmbeddings(
-            embeddingParameters
-        );
+        });
 
         const finalEmbeddings = generatedEmbeddings.result.results.map(
             (embedding) => embedding
         );
-        console.log("Final Embeddings", finalEmbeddings);
 
-        return finalEmbeddings;
+        return finalEmbeddings[0].embedding;
     }
     catch(error) {
         console.log("error in query embedding", error);
