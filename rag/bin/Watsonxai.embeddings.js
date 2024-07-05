@@ -30,7 +30,6 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                 });
                 const processedDocuments = processDocs(documents);
                 const generatedEmbeddings = yield Promise.all(processedDocuments.map((chunk) => __awaiter(this, void 0, void 0, function* () {
-                    console.log("Chunk", chunk);
                     const embeddingParameters = {
                         inputs: chunk,
                         modelId: "ibm/slate-125m-english-rtrvr",
@@ -48,7 +47,6 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                         embeddings.push(finalEmbeddings[i][j].embedding);
                     }
                 }
-                console.log("Embeddings", embeddings);
                 return embeddings;
             }
             catch (error) {
@@ -59,7 +57,6 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
     }
     embedQuery(query) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.log("Embedding Query", query);
             // Service instance
             let watsonxAIService = watsonx_ai_1.WatsonXAI.newInstance({
                 version: "2024-05-31",
@@ -74,8 +71,6 @@ class WatsonXAIEmbeddings extends embeddings_1.Embeddings {
                 projectId: process.env.WATSONX_PROJECT_ID,
             });
             const finalEmbeddings = generatedEmbeddings.result.results.map((embedding) => embedding);
-            console.log("Generated Embeddings", finalEmbeddings[0].embedding);
-            console.log("Generated Embeddings Res", finalEmbeddings[0].embedding.length);
             return finalEmbeddings[0].embedding;
         });
     }

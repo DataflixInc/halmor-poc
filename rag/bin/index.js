@@ -19,19 +19,11 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 const PORT = process.env.PORT || 8080;
-/*
-    - POST /generate
-        - Body
-            - question: Careers URL to scrape Job Description
-
-        - Response
-
-    What's happening in this API?
-*/
 app.post("/generate", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         let body = req.body;
         if (body.chatHistory) {
+            // Generate response based on Chat History of the user from the Watsonx bot
             const answer = yield (0, generate_1.generate)(body.chatHistory);
             res.send({
                 response: {
