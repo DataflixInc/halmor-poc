@@ -21,8 +21,9 @@ const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        const chat = formatChatHistory(chatHistory);
-        const docs = yield vectorStoreDocs(question);
+        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(0, chatHistory.length - 5) : chatHistory;
+        const chat = formatChatHistory(strippedChat);
+        console.log("Chat", chat);
         const model = new watsonx_ai_1.WatsonxAI({
             modelId: "meta-llama/llama-3-70b-instruct",
             modelParameters: {
@@ -32,9 +33,12 @@ const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* ()
                 repetition_penalty: 1,
             },
         });
+        console.log("Chat", chat.length);
         const contextualQ = chat.length >= 2
             ? yield contextualizedQ(chat, question)
             : question;
+        console.log("ContextualQ", contextualQ);
+        const docs = yield vectorStoreDocs(contextualQ);
         const response = yield finalChain(model, docs, contextualQ);
         console.log("Response", response);
         let cleanedResponse = cleanResponse(response);
@@ -50,22 +54,22 @@ const vectorStoreDocs = (question) => __awaiter(void 0, void 0, void 0, function
     console.log("Creating Vector Store Retriever");
     // Load the vector store
     const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", new Watsonxai_embeddings_1.WatsonXAIEmbeddings({}));
-    return yield vectorStore.similaritySearch(question, 1);
+    return yield vectorStore.similaritySearch(question, 5);
 });
 const contextualizedQ = (chat, question) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log("Contextualized Question");
         const model = new watsonx_ai_1.WatsonxAI({
-            modelId: "google/flan-t5-xl",
+            modelId: "meta-llama/llama-3-70b-instruct",
             modelParameters: {
                 max_new_tokens: 200,
-                temperature: 0,
+                temperature: 0.7,
                 stop_sequences: [],
                 repetition_penalty: 1,
             },
         });
         const contextualizeQSystemPrompt = `
-        Given a chat history and the user message which might reference context in the chat history, rewrite the users message which can be understood without the chat history.
+        Given chat history and user question which might refer to the context in the chat history, rewrite the users question which can be understood without the chat history.
         Strictly follow below instructions while giving the answer:
         1. Do NOT respond to the user message.
         2. Only rewrite the message if needed, otherwise return the message as is.
@@ -73,7 +77,8 @@ const contextualizedQ = (chat, question) => __awaiter(void 0, void 0, void 0, fu
         const contextualizeQPrompt = prompts_1.ChatPromptTemplate.fromMessages([
             ["system", contextualizeQSystemPrompt],
             new prompts_1.MessagesPlaceholder("chat_history"),
-            ["human", "message: {question}"],
+            ["human", "{question}"],
+            ["ai", "Response:"],
         ]);
         const contextualizeQChain = contextualizeQPrompt
             .pipe(model)
@@ -95,7 +100,7 @@ const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, 
         You are pro KetoCoach, an AI nutrition coach with expertise in low-carb and keto diets.
         You provide personalized advice, meal plans, and tips to help users successfully follow these dietary plans.
         Your responses should be engaging, and informative, making users feel like they are chatting with a knowledgeable human coach.
-        Use the context from the provided dataset of YouTube transcripts to enhance your answers with relevant examples, tips, and explanations.
+        Use the provided context enhance your answers with relevant examples, tips, and explanations.
         Your answers have to be informational. Do not answer in your perspective.
         Only use multiple sentences when it’s necessary to convey the meaning of your response in longer responses. 
         You can use only a maximum of 3 sentences or 3 items.
@@ -129,11 +134,13 @@ const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, 
     }
 });
 const formatChatHistory = (chatHistory) => {
-    let newChatHistory = [];
-    if (chatHistory.length > 6)
-        newChatHistory = chatHistory.slice(chatHistory.length - 6, chatHistory.length);
-    else
-        newChatHistory = chatHistory;
+    // let newChatHistory: ChatItem[] = [];
+    // if (chatHistory.length > 6)
+    //     newChatHistory = chatHistory.slice(
+    //         chatHistory.length - 6,
+    //         chatHistory.length
+    //     );
+    // else newChatHistory = chatHistory;
     return chatHistory.map((item) => {
         if (item.a) {
             return new messages_1.AIMessage(item.a);

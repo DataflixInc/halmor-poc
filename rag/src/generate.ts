@@ -24,8 +24,9 @@ type Message = AIMessage | HumanMessage | undefined; // Common interface for bot
 export const generate = async (chatHistory: ChatItem[]) => {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        const chat = formatChatHistory(chatHistory);
-        const docs = await vectorStoreDocs(question as string);
+        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(0, chatHistory.length - 5) : chatHistory;
+        const chat = formatChatHistory(strippedChat);
+        console.log("Chat", chat);
 
         const model = new WatsonxAI({
             modelId: "meta-llama/llama-3-70b-instruct",
@@ -37,10 +38,17 @@ export const generate = async (chatHistory: ChatItem[]) => {
             },
         });
 
+        console.log("Chat", chat.length);
+
         const contextualQ =
             chat.length >= 2
                 ? await contextualizedQ(chat, question!)
                 : question!;
+
+        console.log("ContextualQ", contextualQ);
+        
+        const docs = await vectorStoreDocs(contextualQ as string);
+
 
         const response = await finalChain(model, docs, contextualQ);
         console.log("Response", response);
@@ -61,7 +69,7 @@ const vectorStoreDocs = async (question: string) => {
         __dirname + "/embeddings",
         new WatsonXAIEmbeddings({})
     );
-    return await vectorStore.similaritySearch(question, 1);
+    return await vectorStore.similaritySearch(question, 5);
 };
 
 const contextualizedQ = async (
@@ -72,17 +80,17 @@ const contextualizedQ = async (
         console.log("Contextualized Question");
 
         const model = new WatsonxAI({
-            modelId: "google/flan-t5-xl",
+            modelId: "meta-llama/llama-3-70b-instruct",
             modelParameters: {
                 max_new_tokens: 200,
-                temperature: 0,
+                temperature: 0.7,
                 stop_sequences: [],
                 repetition_penalty: 1,
             },
         });
 
         const contextualizeQSystemPrompt = `
-        Given a chat history and the user message which might reference context in the chat history, rewrite the users message which can be understood without the chat history.
+        Given chat history and user question which might refer to the context in the chat history, rewrite the users question which can be understood without the chat history.
         Strictly follow below instructions while giving the answer:
         1. Do NOT respond to the user message.
         2. Only rewrite the message if needed, otherwise return the message as is.
@@ -91,7 +99,8 @@ const contextualizedQ = async (
         const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
             ["system", contextualizeQSystemPrompt],
             new MessagesPlaceholder("chat_history"),
-            ["human", "message: {question}"],
+            ["human", "{question}"],
+            ["ai", "Response:"],
         ]);
         const contextualizeQChain = contextualizeQPrompt
             .pipe(model)
@@ -115,7 +124,7 @@ const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
         You are pro KetoCoach, an AI nutrition coach with expertise in low-carb and keto diets.
         You provide personalized advice, meal plans, and tips to help users successfully follow these dietary plans.
         Your responses should be engaging, and informative, making users feel like they are chatting with a knowledgeable human coach.
-        Use the context from the provided dataset of YouTube transcripts to enhance your answers with relevant examples, tips, and explanations.
+        Use the provided context enhance your answers with relevant examples, tips, and explanations.
         Your answers have to be informational. Do not answer in your perspective.
         Only use multiple sentences when it’s necessary to convey the meaning of your response in longer responses. 
         You can use only a maximum of 3 sentences or 3 items.
@@ -151,13 +160,13 @@ const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
 };
 
 const formatChatHistory = (chatHistory: ChatItem[]): Message[] => {
-    let newChatHistory: ChatItem[] = [];
-    if (chatHistory.length > 6)
-        newChatHistory = chatHistory.slice(
-            chatHistory.length - 6,
-            chatHistory.length
-        );
-    else newChatHistory = chatHistory;
+    // let newChatHistory: ChatItem[] = [];
+    // if (chatHistory.length > 6)
+    //     newChatHistory = chatHistory.slice(
+    //         chatHistory.length - 6,
+    //         chatHistory.length
+    //     );
+    // else newChatHistory = chatHistory;
 
     return chatHistory.map((item: ChatItem) => {
         if (item.a) {

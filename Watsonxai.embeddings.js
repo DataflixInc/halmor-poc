@@ -19,6 +19,12 @@ export class WatsonXAIEmbeddings extends Embeddings {
                 }),
             });
 
+            /* processedDocuments = [
+                    [{pageContent: string, metadata: object}], // (at max 1000 docs)
+                    [{pageContent: string, metadata: object}], // (at max 1000 docs)
+                    [{pageContent: string, metadata: object}], // (at max 1000 docs)
+                ] // (at max 1000 docs)
+            */
             const processedDocuments = processDocs(documents);
 
             const generatedEmbeddings = await Promise.all(

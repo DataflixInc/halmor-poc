@@ -21,6 +21,7 @@ const generateEmbeddings = async () => {
             chunkOverlap: 0,
         });
 
+        // Doc is like [{pageContent: string, metadata: object}]
         const docs = await textSplitterChat.createDocuments([data]);
 
         // Generate embeddings using Watsonx.ai
