@@ -17,8 +17,8 @@ const generateEmbeddings = async () => {
 
         // Splitting the data 
         const textSplitterChat = new RecursiveCharacterTextSplitter({
-            chunkSize: 200,
-            chunkOverlap: 0,
+            chunkSize: 1000,
+            chunkOverlap: 150,
         });
 
         // Doc is like [{pageContent: string, metadata: object}]

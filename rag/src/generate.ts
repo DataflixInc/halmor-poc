@@ -8,7 +8,6 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import {
     ChatPromptTemplate,
     MessagesPlaceholder,
-    PromptTemplate,
 } from "@langchain/core/prompts";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
@@ -24,33 +23,14 @@ type Message = AIMessage | HumanMessage | undefined; // Common interface for bot
 export const generate = async (chatHistory: ChatItem[]) => {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(0, chatHistory.length - 5) : chatHistory;
+        console.log("Question", question);
+        console.log("Chat History Length", chatHistory.length);
+        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(chatHistory.length - 5, chatHistory.length) : chatHistory;
+        console.log("Stripped Chat", strippedChat);
         const chat = formatChatHistory(strippedChat);
-        console.log("Chat", chat);
+        console.log("Formatted Chat", chat);
 
-        const model = new WatsonxAI({
-            modelId: "meta-llama/llama-3-70b-instruct",
-            modelParameters: {
-                max_new_tokens: 500,
-                temperature: 0.3,
-                stop_sequences: [],
-                repetition_penalty: 1,
-            },
-        });
-
-        console.log("Chat", chat.length);
-
-        const contextualQ =
-            chat.length >= 2
-                ? await contextualizedQ(chat, question!)
-                : question!;
-
-        console.log("ContextualQ", contextualQ);
-        
-        const docs = await vectorStoreDocs(contextualQ as string);
-
-
-        const response = await finalChain(model, docs, contextualQ);
+        const response = await finalChain(chat, question!);
         console.log("Response", response);
 
         let cleanedResponse = cleanResponse(response);
@@ -62,8 +42,7 @@ export const generate = async (chatHistory: ChatItem[]) => {
     }
 };
 
-const vectorStoreDocs = async (question: string) => {
-    console.log("Creating Vector Store Retriever");
+const vectorStoreRetriever = async (question: string) => {
     // Load the vector store
     const vectorStore = await HNSWLib.load(
         __dirname + "/embeddings",
@@ -72,55 +51,73 @@ const vectorStoreDocs = async (question: string) => {
     return await vectorStore.similaritySearch(question, 5);
 };
 
-const contextualizedQ = async (
-    chat: Message[],
-    question: string
-): Promise<string> => {
+const contextualQChain = async (chatHistory: Message[], question: string): Promise<string> => {
     try {
-        console.log("Contextualized Question");
+
+        if (chatHistory.length === 1) {
+            console.log("No Chat History");
+            return question;
+        } else {
+            const model = new WatsonxAI({
+                modelId: "mistralai/mistral-large",
+                modelParameters: {
+                    max_new_tokens: 200,
+                    temperature: 0.5,
+                    stop_sequences: [],
+                    repetition_penalty: 1,
+                },
+            });
+
+            const contextualizeQSystemPrompt = `
+                Rewrite the users question which can be understood without the chat history.
+                ONLY Rephrase and return the question in a way that is has context from the chat history.
+            `;
+
+            const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
+                ["system", contextualizeQSystemPrompt],
+                new MessagesPlaceholder("chat_history"),
+                ["human", "{question}"],
+                ["ai", "Rephrased Question:"],
+            ]);
+            const contextualizeQChain = contextualizeQPrompt
+                .pipe(model)
+                .pipe(new StringOutputParser());
+
+            const res = await contextualizeQChain.invoke({
+                chat_history: chatHistory,
+                question: question
+            });
+
+            if(res == ""){
+                console.log("No Contextualized Q");
+                return question;
+            }
+        
+            console.log("Contextualized Q", res);
+            return res;
+        }
+
+    } catch (error) {
+        console.log("Error contextualizing question", error);
+        throw error;
+    }
+};
+
+const finalChain = async (chat: Message[], question: string) => {
+    try {
+        console.log("Final Chain");
 
         const model = new WatsonxAI({
             modelId: "meta-llama/llama-3-70b-instruct",
             modelParameters: {
-                max_new_tokens: 200,
+                max_new_tokens: 500,
                 temperature: 0.7,
-                stop_sequences: [],
+                stop_sequences: ["Human:"],
                 repetition_penalty: 1,
             },
         });
 
-        const contextualizeQSystemPrompt = `
-        Given chat history and user question which might refer to the context in the chat history, rewrite the users question which can be understood without the chat history.
-        Strictly follow below instructions while giving the answer:
-        1. Do NOT respond to the user message.
-        2. Only rewrite the message if needed, otherwise return the message as is.
-        `;
-
-        const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
-            ["system", contextualizeQSystemPrompt],
-            new MessagesPlaceholder("chat_history"),
-            ["human", "{question}"],
-            ["ai", "Response:"],
-        ]);
-        const contextualizeQChain = contextualizeQPrompt
-            .pipe(model)
-            .pipe(new StringOutputParser());
-
-        return await contextualizeQChain.invoke({
-            chat_history: chat,
-            question: question,
-        });
-    } catch (error) {
-        console.log("Error contextualizing question", error);
-        return question;
-    }
-};
-
-const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
-    try {
-        console.log("Final Chain");
-
-        const qaSystemPrompt = PromptTemplate.fromTemplate(`
+        const qaSystemPrompt = `
         You are pro KetoCoach, an AI nutrition coach with expertise in low-carb and keto diets.
         You provide personalized advice, meal plans, and tips to help users successfully follow these dietary plans.
         Your responses should be engaging, and informative, making users feel like they are chatting with a knowledgeable human coach.
@@ -128,30 +125,37 @@ const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
         Your answers have to be informational. Do not answer in your perspective.
         Only use multiple sentences when it’s necessary to convey the meaning of your response in longer responses. 
         You can use only a maximum of 3 sentences or 3 items.
-        Respond only to the question. 
+        Respond only to the question. Respond with your answer. Do not complete conversation for the user.
 
         Context: {context}
+        `;
 
-        Question: {question}
+        const qaPrompt = ChatPromptTemplate.fromMessages([
+            ["system", qaSystemPrompt],
+            new MessagesPlaceholder("chat_history"),
+            ["human", "{question}"],
+            ["ai", "Response:"],
+        ]);
 
-        Response:
-        `);
+        const contextualizeQChainRes = await contextualQChain(chat, question);
 
         const ragChain = RunnableSequence.from([
             {
-                context: async (input) => {
-                    const relevantDocs = docs;
-                    console.log("Relevant Docs", relevantDocs);
-                    return formatDocumentsAsString(relevantDocs);
+                context: async (input: Record<string, unknown>) => {
+                    const retrievedDocs = await vectorStoreRetriever(contextualizeQChainRes);
+                    console.log("Retrieved Docs", retrievedDocs);
+                    return formatDocumentsAsString(retrievedDocs);
                 },
-                question: (input) => input.question,
+                chat_history: (input: Record<string, unknown>) => input.chat,
+                question: (input: Record<string, unknown>) => input.question,
             },
-            qaSystemPrompt,
+            qaPrompt,
             model,
         ]);
 
         return await ragChain.invoke({
-            question,
+            question: question,
+            chat: chat,
         });
     } catch (error) {
         console.log("Error in final chain", error);
@@ -160,14 +164,6 @@ const finalChain = async (model: WatsonxAI, docs: any, question: string) => {
 };
 
 const formatChatHistory = (chatHistory: ChatItem[]): Message[] => {
-    // let newChatHistory: ChatItem[] = [];
-    // if (chatHistory.length > 6)
-    //     newChatHistory = chatHistory.slice(
-    //         chatHistory.length - 6,
-    //         chatHistory.length
-    //     );
-    // else newChatHistory = chatHistory;
-
     return chatHistory.map((item: ChatItem) => {
         if (item.a) {
             return new AIMessage(item.a);
@@ -183,5 +179,9 @@ const cleanResponse = (response: string) => {
     res = res.replace(/\s*AI:\s*/gm, "");
     res = res.replace(/(\r\n|\n|\r)/gm, "");
     res = res.trim();
+    if(res.includes("Human:")){
+        // Replace everything after Human: with nothing
+        res = res.replace(/Human:.*/gm, "");
+    }
     return res;
 };

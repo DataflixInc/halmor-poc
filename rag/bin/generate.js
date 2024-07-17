@@ -21,25 +21,13 @@ const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(0, chatHistory.length - 5) : chatHistory;
+        console.log("Question", question);
+        console.log("Chat History Length", chatHistory.length);
+        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(chatHistory.length - 5, chatHistory.length) : chatHistory;
+        console.log("Stripped Chat", strippedChat);
         const chat = formatChatHistory(strippedChat);
-        console.log("Chat", chat);
-        const model = new watsonx_ai_1.WatsonxAI({
-            modelId: "meta-llama/llama-3-70b-instruct",
-            modelParameters: {
-                max_new_tokens: 500,
-                temperature: 0.3,
-                stop_sequences: [],
-                repetition_penalty: 1,
-            },
-        });
-        console.log("Chat", chat.length);
-        const contextualQ = chat.length >= 2
-            ? yield contextualizedQ(chat, question)
-            : question;
-        console.log("ContextualQ", contextualQ);
-        const docs = yield vectorStoreDocs(contextualQ);
-        const response = yield finalChain(model, docs, contextualQ);
+        console.log("Formatted Chat", chat);
+        const response = yield finalChain(chat, question);
         console.log("Response", response);
         let cleanedResponse = cleanResponse(response);
         console.log("Cleaned Response", cleanedResponse);
@@ -50,53 +38,70 @@ const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.generate = generate;
-const vectorStoreDocs = (question) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log("Creating Vector Store Retriever");
+const vectorStoreRetriever = (question) => __awaiter(void 0, void 0, void 0, function* () {
     // Load the vector store
     const vectorStore = yield hnswlib_1.HNSWLib.load(__dirname + "/embeddings", new Watsonxai_embeddings_1.WatsonXAIEmbeddings({}));
     return yield vectorStore.similaritySearch(question, 5);
 });
-const contextualizedQ = (chat, question) => __awaiter(void 0, void 0, void 0, function* () {
+const contextualQChain = (chatHistory, question) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log("Contextualized Question");
-        const model = new watsonx_ai_1.WatsonxAI({
-            modelId: "meta-llama/llama-3-70b-instruct",
-            modelParameters: {
-                max_new_tokens: 200,
-                temperature: 0.7,
-                stop_sequences: [],
-                repetition_penalty: 1,
-            },
-        });
-        const contextualizeQSystemPrompt = `
-        Given chat history and user question which might refer to the context in the chat history, rewrite the users question which can be understood without the chat history.
-        Strictly follow below instructions while giving the answer:
-        1. Do NOT respond to the user message.
-        2. Only rewrite the message if needed, otherwise return the message as is.
-        `;
-        const contextualizeQPrompt = prompts_1.ChatPromptTemplate.fromMessages([
-            ["system", contextualizeQSystemPrompt],
-            new prompts_1.MessagesPlaceholder("chat_history"),
-            ["human", "{question}"],
-            ["ai", "Response:"],
-        ]);
-        const contextualizeQChain = contextualizeQPrompt
-            .pipe(model)
-            .pipe(new output_parsers_1.StringOutputParser());
-        return yield contextualizeQChain.invoke({
-            chat_history: chat,
-            question: question,
-        });
+        if (chatHistory.length === 1) {
+            console.log("No Chat History");
+            return question;
+        }
+        else {
+            const model = new watsonx_ai_1.WatsonxAI({
+                modelId: "mistralai/mistral-large",
+                modelParameters: {
+                    max_new_tokens: 200,
+                    temperature: 0.5,
+                    stop_sequences: [],
+                    repetition_penalty: 1,
+                },
+            });
+            const contextualizeQSystemPrompt = `
+                Rewrite the users question which can be understood without the chat history.
+                ONLY Rephrase and return the question in a way that is has context from the chat history.
+            `;
+            const contextualizeQPrompt = prompts_1.ChatPromptTemplate.fromMessages([
+                ["system", contextualizeQSystemPrompt],
+                new prompts_1.MessagesPlaceholder("chat_history"),
+                ["human", "{question}"],
+                ["ai", "Rephrased Question:"],
+            ]);
+            const contextualizeQChain = contextualizeQPrompt
+                .pipe(model)
+                .pipe(new output_parsers_1.StringOutputParser());
+            const res = yield contextualizeQChain.invoke({
+                chat_history: chatHistory,
+                question: question
+            });
+            if (res == "") {
+                console.log("No Contextualized Q");
+                return question;
+            }
+            console.log("Contextualized Q", res);
+            return res;
+        }
     }
     catch (error) {
         console.log("Error contextualizing question", error);
-        return question;
+        throw error;
     }
 });
-const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, function* () {
+const finalChain = (chat, question) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log("Final Chain");
-        const qaSystemPrompt = prompts_1.PromptTemplate.fromTemplate(`
+        const model = new watsonx_ai_1.WatsonxAI({
+            modelId: "meta-llama/llama-3-70b-instruct",
+            modelParameters: {
+                max_new_tokens: 500,
+                temperature: 0.7,
+                stop_sequences: ["Human:"],
+                repetition_penalty: 1,
+            },
+        });
+        const qaSystemPrompt = `
         You are pro KetoCoach, an AI nutrition coach with expertise in low-carb and keto diets.
         You provide personalized advice, meal plans, and tips to help users successfully follow these dietary plans.
         Your responses should be engaging, and informative, making users feel like they are chatting with a knowledgeable human coach.
@@ -104,28 +109,33 @@ const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, 
         Your answers have to be informational. Do not answer in your perspective.
         Only use multiple sentences when it’s necessary to convey the meaning of your response in longer responses. 
         You can use only a maximum of 3 sentences or 3 items.
-        Respond only to the question. 
+        Respond only to the question. Respond with your answer. Do not complete conversation for the user.
 
         Context: {context}
-
-        Question: {question}
-
-        Response:
-        `);
+        `;
+        const qaPrompt = prompts_1.ChatPromptTemplate.fromMessages([
+            ["system", qaSystemPrompt],
+            new prompts_1.MessagesPlaceholder("chat_history"),
+            ["human", "{question}"],
+            ["ai", "Response:"],
+        ]);
+        const contextualizeQChainRes = yield contextualQChain(chat, question);
         const ragChain = runnables_1.RunnableSequence.from([
             {
                 context: (input) => __awaiter(void 0, void 0, void 0, function* () {
-                    const relevantDocs = docs;
-                    console.log("Relevant Docs", relevantDocs);
-                    return (0, document_1.formatDocumentsAsString)(relevantDocs);
+                    const retrievedDocs = yield vectorStoreRetriever(contextualizeQChainRes);
+                    console.log("Retrieved Docs", retrievedDocs);
+                    return (0, document_1.formatDocumentsAsString)(retrievedDocs);
                 }),
+                chat_history: (input) => input.chat,
                 question: (input) => input.question,
             },
-            qaSystemPrompt,
+            qaPrompt,
             model,
         ]);
         return yield ragChain.invoke({
-            question,
+            question: question,
+            chat: chat,
         });
     }
     catch (error) {
@@ -134,13 +144,6 @@ const finalChain = (model, docs, question) => __awaiter(void 0, void 0, void 0, 
     }
 });
 const formatChatHistory = (chatHistory) => {
-    // let newChatHistory: ChatItem[] = [];
-    // if (chatHistory.length > 6)
-    //     newChatHistory = chatHistory.slice(
-    //         chatHistory.length - 6,
-    //         chatHistory.length
-    //     );
-    // else newChatHistory = chatHistory;
     return chatHistory.map((item) => {
         if (item.a) {
             return new messages_1.AIMessage(item.a);
@@ -156,6 +159,10 @@ const cleanResponse = (response) => {
     res = res.replace(/\s*AI:\s*/gm, "");
     res = res.replace(/(\r\n|\n|\r)/gm, "");
     res = res.trim();
+    if (res.includes("Human:")) {
+        // Replace everything after Human: with nothing
+        res = res.replace(/Human:.*/gm, "");
+    }
     return res;
 };
 //# sourceMappingURL=generate.js.map
