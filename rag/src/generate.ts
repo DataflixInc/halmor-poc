@@ -63,14 +63,16 @@ const contextualQChain = async (chatHistory: Message[], question: string): Promi
                 modelParameters: {
                     max_new_tokens: 200,
                     temperature: 0.5,
-                    stop_sequences: [],
+                    stop_sequences: ["AI:", "Human:"],
                     repetition_penalty: 1,
                 },
             });
 
             const contextualizeQSystemPrompt = `
                 Rewrite the users question which can be understood without the chat history.
-                ONLY Rephrase and return the question in a way that is has context from the chat history.
+                Do NOT generate answer to the question.
+                ONLY Rephrase question in a way that is has context from the chat history.
+                
             `;
 
             const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
