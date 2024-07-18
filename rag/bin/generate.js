@@ -18,12 +18,29 @@ const output_parsers_1 = require("@langchain/core/output_parsers");
 const prompts_1 = require("@langchain/core/prompts");
 const messages_1 = require("@langchain/core/messages");
 const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
+const filterChatHistory = (chatHistory) => {
+    const filteredChatHistory = chatHistory.map((item) => {
+            // if the text contains "option: [anything]", remove it
+            const optionRegex = /option:\s*\[(.*)\]/gm;
+            const match = optionRegex.exec(item.a);
+            if (match) {
+                return {
+                    a: item.a.replace(match[0], ""),
+                };
+            }
+            return item;
+        }
+        return item;
+    });
+    return filteredChatHistory;
+};
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
         console.log("Question", question);
         console.log("Chat History Length", chatHistory.length);
-        const strippedChat = chatHistory.length >= 5 ? chatHistory.splice(chatHistory.length - 5, chatHistory.length) : chatHistory;
+        const filteredChatHistory = filterChatHistory(chatHistory);
+        const strippedChat = filteredChatHistory.length >= 5 ? filteredChatHistory.splice(filteredChatHistory.length - 5, filteredChatHistory.length) : filteredChatHistory;
         console.log("Stripped Chat", strippedChat);
         const chat = formatChatHistory(strippedChat);
         console.log("Formatted Chat", chat);
@@ -55,13 +72,15 @@ const contextualQChain = (chatHistory, question) => __awaiter(void 0, void 0, vo
                 modelParameters: {
                     max_new_tokens: 200,
                     temperature: 0.5,
-                    stop_sequences: [],
+                    stop_sequences: ["AI:", "Human:"],
                     repetition_penalty: 1,
                 },
             });
             const contextualizeQSystemPrompt = `
                 Rewrite the users question which can be understood without the chat history.
-                ONLY Rephrase and return the question in a way that is has context from the chat history.
+                Do NOT generate answer to the question.
+                ONLY Rephrase question in a way that is has context from the chat history.
+                
             `;
             const contextualizeQPrompt = prompts_1.ChatPromptTemplate.fromMessages([
                 ["system", contextualizeQSystemPrompt],
