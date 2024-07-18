@@ -20,6 +20,7 @@ const messages_1 = require("@langchain/core/messages");
 const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
 const filterChatHistory = (chatHistory) => {
     const filteredChatHistory = chatHistory.map((item) => {
+        if (item.a) {
             // if the text contains "option: [anything]", remove it
             const optionRegex = /option:\s*\[(.*)\]/gm;
             const match = optionRegex.exec(item.a);
