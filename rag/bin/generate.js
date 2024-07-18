@@ -19,15 +19,19 @@ const prompts_1 = require("@langchain/core/prompts");
 const messages_1 = require("@langchain/core/messages");
 const Watsonxai_embeddings_1 = require("./Watsonxai.embeddings");
 const filterChatHistory = (chatHistory) => {
+    console.log("Filtering Chat History", chatHistory);
     const filteredChatHistory = chatHistory.map((item) => {
         if (item.a) {
             // if the text contains "option: [anything]", remove it
             const optionRegex = /option:\s*\[(.*)\]/gm;
             const match = optionRegex.exec(item.a);
             if (match) {
-                return {
-                    a: item.a.replace(match[0], ""),
-                };
+                const replacingText = item.a.replace(match[0], "");
+                if (replacingText.length > 0) {
+                    return {
+                        a: replacingText
+                    };
+                }
             }
             return item;
         }
@@ -38,9 +42,8 @@ const filterChatHistory = (chatHistory) => {
 const generate = (chatHistory) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        console.log("Question", question);
-        console.log("Chat History Length", chatHistory.length);
         const filteredChatHistory = filterChatHistory(chatHistory);
+        console.log("Filtered Chat History", filteredChatHistory);
         const strippedChat = filteredChatHistory.length >= 5 ? filteredChatHistory.splice(filteredChatHistory.length - 5, filteredChatHistory.length) : filteredChatHistory;
         console.log("Stripped Chat", strippedChat);
         const chat = formatChatHistory(strippedChat);

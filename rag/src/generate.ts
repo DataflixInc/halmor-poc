@@ -21,15 +21,19 @@ import { WatsonXAIEmbeddings } from "./Watsonxai.embeddings";
 type Message = AIMessage | HumanMessage | undefined; // Common interface for both message types
 
 const filterChatHistory = (chatHistory: ChatItem[]): ChatItem[] => {
+    console.log("Filtering Chat History", chatHistory);
     const filteredChatHistory = chatHistory.map((item: ChatItem) => {
         if(item.a){
             // if the text contains "option: [anything]", remove it
             const optionRegex = /option:\s*\[(.*)\]/gm;
             const match = optionRegex.exec(item.a);
             if(match){
-                return {
-                    a: item.a.replace(match[0], ""),
-                };
+                const replacingText = item.a.replace(match[0], "");
+                if(replacingText.length > 0){
+                    return {
+                        a: replacingText
+                    };
+                }
             }
             return item;
         }
@@ -41,9 +45,8 @@ const filterChatHistory = (chatHistory: ChatItem[]): ChatItem[] => {
 export const generate = async (chatHistory: ChatItem[]) => {
     try {
         const question = chatHistory.splice(chatHistory.length - 1, 1)[0]["u"];
-        console.log("Question", question);
-        console.log("Chat History Length", chatHistory.length);
         const filteredChatHistory = filterChatHistory(chatHistory);
+        console.log("Filtered Chat History", filteredChatHistory);
         const strippedChat = filteredChatHistory.length >= 5 ? filteredChatHistory.splice(filteredChatHistory.length - 5, filteredChatHistory.length) : filteredChatHistory;
         console.log("Stripped Chat", strippedChat);
         const chat = formatChatHistory(strippedChat);
