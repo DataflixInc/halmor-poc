@@ -85,7 +85,7 @@ const contextualQChain = async (chatHistory: Message[], question: string): Promi
                 modelParameters: {
                     max_new_tokens: 200,
                     temperature: 0.5,
-                    stop_sequences: ["AI:", "Human:"],
+                    stop_sequences: ["AI:", "Human:", "System:"],
                     repetition_penalty: 1,
                 },
             });
@@ -94,7 +94,6 @@ const contextualQChain = async (chatHistory: Message[], question: string): Promi
                 Rewrite the users question which can be understood without the chat history.
                 Do NOT generate answer to the question.
                 ONLY Rephrase question in a way that is has context from the chat history.
-                
             `;
 
             const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
@@ -150,6 +149,7 @@ const finalChain = async (chat: Message[], question: string) => {
         Only use multiple sentences when it’s necessary to convey the meaning of your response in longer responses. 
         You can use only a maximum of 3 sentences or 3 items.
         Respond only to the question. Respond with your answer. Do not complete conversation for the user.
+        Rephrase medical terms and medical acronyms into a more general language.
 
         Context: {context}
         `;
