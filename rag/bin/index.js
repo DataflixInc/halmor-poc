@@ -22,9 +22,9 @@ const PORT = process.env.PORT || 8080;
 app.post("/generate", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         let body = req.body;
-        if (body.chatHistory) {
+        if (body.question) {
             // Generate response based on Chat History of the user from the Watsonx bot
-            const answer = yield (0, generate_1.generate)(body.chatHistory);
+            const answer = yield (0, generate_1.generate)(body.question);
             res.send({
                 response: {
                     answer,

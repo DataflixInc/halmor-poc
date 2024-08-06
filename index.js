@@ -4,30 +4,35 @@ import * as fs from "fs";
 import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import dotenv from "dotenv";
-
-import { WatsonXAIEmbeddings } from "./Watsonxai.embeddings.js";
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
+import { OpenAIEmbeddings } from "@langchain/openai";
 
 dotenv.config();
 
 const generateEmbeddings = async () => {
     try {
-        // Path to Knowledge Base
-        const DATA_FILE_PATH = "./data/data.txt";
-        const data = fs.readFileSync(DATA_FILE_PATH, "utf8");
+        const pdfPath = "./data/pdfs/";
+        const directoryLoader = new DirectoryLoader(pdfPath, {
+            ".pdf": (path) => new PDFLoader(path),
+          });
 
-        // Splitting the data 
-        const textSplitterChat = new RecursiveCharacterTextSplitter({
-            chunkSize: 1000,
-            chunkOverlap: 150,
+        const directoryDocs = await directoryLoader.load();
+
+        const textSplitter = new RecursiveCharacterTextSplitter({
+            chunkSize: 2000,
+            chunkOverlap: 250,
         });
-
-        // Doc is like [{pageContent: string, metadata: object}]
-        const docs = await textSplitterChat.createDocuments([data]);
+        
+        const splitDocs = await textSplitter.splitDocuments(directoryDocs);
 
         // Generate embeddings using Watsonx.ai
+        console.log("Generating Embeddings...")
         const vectorStore = await HNSWLib.fromDocuments(
-            docs,
-            new WatsonXAIEmbeddings({})
+            splitDocs,
+            new OpenAIEmbeddings({
+                openAIApiKey: process.env.OPENAI_API_KEY,
+            })
         );
 
         // save embeddings into the embeddings folder of the RAG

@@ -13,9 +13,9 @@ app.post("/generate", async (req: Request, res: Response) => {
     try {
         let body = req.body;
 
-        if (body.chatHistory) {
+        if (body.question) {
             // Generate response based on Chat History of the user from the Watsonx bot
-            const answer = await generate(body.chatHistory);
+            const answer = await generate(body.question);
             res.send({
                 response: {
                     answer,
